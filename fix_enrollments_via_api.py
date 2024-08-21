@@ -54,7 +54,7 @@ class CanvasEnrollmentsRestorer:
         return enrollments
 
     # Restore enrollments, optionally filtering by date
-    def restore_enrollment(self, enrollment: Enrollment, date_filter: Optional[datetime] = None, skip_sections=None) -> str:
+    def restore_enrollment(self, enrollment: Enrollment, after_date: Optional[datetime] = None, skip_sections=None) -> str:
         if skip_sections is None:
             skip_sections = []
 
@@ -62,7 +62,7 @@ class CanvasEnrollmentsRestorer:
         # Get updated_at from enrollment, convert to datetime
         updated_at = datetime.strptime(enrollment.updated_at, "%Y-%m-%dT%H:%M:%S%z")
         # Only process enrollments that were updated on 2024-08-20 or later and not in skip_sections
-        if date_filter and updated_at >= date_filter:
+        if after_date and updated_at >= after_date:
             if enrollment.sis_section_id not in skip_sections:
                 message = "Restoring enrollment"
                 # Use the canvasapi to enroll the user in the section
@@ -70,9 +70,9 @@ class CanvasEnrollmentsRestorer:
                 section = self.canvas.get_section(enrollment.course_section_id)
                 logger.info(f"Enrolling user in section {section.name}")
                 # Then enroll the user
-                section.enroll_user(enrollment.user_id, 
-                    enrollment={"type": enrollment.type, "enrollment_state": 'active',
-                                "start_at": enrollment.start_at, "end_at": enrollment.end_at} )
+#                section.enroll_user(enrollment.user_id, 
+#                    enrollment={"type": enrollment.type, "enrollment_state": 'active',
+#                                "start_at": enrollment.start_at, "end_at": enrollment.end_at} )
             else:
                 message = "Skipping because skip section set."
         else:
@@ -85,7 +85,7 @@ class CanvasEnrollmentsRestorer:
                     
         return message
 
-    def read_file_and_enroll(self, csv_file, skip_sections):
+    def read_file_and_enroll(self, csv_file, skip_sections, after_date):
         with open(csv_file, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
@@ -94,22 +94,21 @@ class CanvasEnrollmentsRestorer:
                 enrollments = self.get_deleted_enrollments(user_id)
                 for enrollment in enrollments:
                     try: 
-                        restored = self.restore_enrollment(enrollment, date_filter=datetime(2024, 8, 20, tzinfo=timezone.utc))
-                        # If the message contains "Restoring enrollment", then the enrollment was restored
-                        if restored and "Restoring enrollment" in restored:
-                            print(f'{restored} for user {user_id}')
-                            # Break after first enrollment for testing
-                            break
+                        restored = self.restore_enrollment(enrollment, 
+                                                           after_date=after_date, skip_sections=skip_sections)
                     except:
                         print(f'Failed to restore enrollment ID {enrollment.id}.')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Restore deleted enrollments for users.')
-    parser.add_argument('csv_file', type=str, help='Path to the CSV file with user IDs.')
-    parser.add_argument('skip_sections', type=str, help='Comma-separated list of sections to skip.')
+    parser.add_argument("--csv-file", type=str, help="Path to the CSV file")
+    parser.add_argument('--skip-sections', type=str, help='Comma-separated list of sections to skip.')
+    parser.add_argument("--after-date", type=str, help="Only process enrollments updated after this date in ISO 8601 format (e.g., '2024-08-21T00:00:00-05:00')")
+
     args = parser.parse_args()
     # Get a list of sections to skip as args
     skip_sections = args.skip_sections.split(',') if args.skip_sections else []
+    after_date = datetime.strptime(args.after_date, "%Y-%m-%dT%H:%M:%S%z") if args.after_date else None
     # Create a new CanvasEnrollmentsRestorer object and call the read_file_and_enroll method
     cer = CanvasEnrollmentsRestorer()
-    cer.read_file_and_enroll(args.csv_file, skip_sections=skip_sections)
+    cer.read_file_and_enroll(args.csv_file, skip_sections=skip_sections, after_date=after_date)
