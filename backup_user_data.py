@@ -13,7 +13,7 @@ handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)
 
 # Turn on logging for the Canvas API
 logger = logging.getLogger("canvasapi")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARN)
 logger.addHandler(handler)
 
 # Add a logger for this class
@@ -28,6 +28,7 @@ class CanvasBackup:
 
     def get_user_data(self, user_id):
         user_data = {}
+        logger.info(f"Retrieving data for user {user_id}")
 
         # Retrieve user communication channels
         user = self.canvas.get_user(user_id, id_type='sis_user_id')
@@ -49,6 +50,7 @@ class CanvasBackup:
         user_data['groups'] = []
         
         for course in courses:
+            logger.info(f"Retrieving groups for course {course.id}")
             groups = course.get_groups()
             for group in groups:
                 if user.id in [member.id for member in group.get_users()]:
@@ -77,8 +79,8 @@ class CanvasBackup:
                 user_data = self.get_user_data(user_id)
                 results.append({'user_id': user_id, 'data': user_data})
 
-        # Save results to JSON
-        self.save_to_json(results, output_file)
+                # Save results to JSON
+                self.save_to_json(results, output_file)
 
 def main():
     # Retrieve API settings from environment variables
